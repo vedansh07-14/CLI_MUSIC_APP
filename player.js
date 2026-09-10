@@ -65,21 +65,8 @@ function render() {
   process.stdout.write(lines.join('\n'));
 }
 
-function renderSelection(previousSelected) {
-  for (const index of new Set([previousSelected, selected])) {
-    const songRow = index + 4;
-    process.stdout.write(`\x1b[${songRow};1H\x1b[2K${songLine(songs[index], index)}`);
-  }
-}
-
-function renderProgress() {
-  if (current === null) return;
-  const progressRow = songs.length + 6;
-  process.stdout.write(`\x1b[${progressRow};1H\x1b[2K${progressLine(songs[current])}`);
-}
-
 function startProgressUpdates() {
-  if (!renderTimer) renderTimer = setInterval(renderProgress, 250);
+  if (!renderTimer) renderTimer = setInterval(render, 250);
 }
 
 function stopProgressUpdates() {
@@ -194,18 +181,19 @@ async function start() {
   if (!songs.length) return console.log('No MP3 files found in the songs folder.');
   if (!process.stdin.isTTY) return console.error('This player needs to be run in an interactive terminal.');
 
+  // Load metadata first so the interface is drawn once with complete durations.
+  await Promise.all(songs.map(readDuration));
+
   process.stdin.setRawMode(true);
   process.stdin.resume();
   bindKeys(process.stdin, {
     up: () => {
-      const previousSelected = selected;
       selected = (selected - 1 + songs.length) % songs.length;
-      renderSelection(previousSelected);
+      render();
     },
     down: () => {
-      const previousSelected = selected;
       selected = (selected + 1) % songs.length;
-      renderSelection(previousSelected);
+      render();
     },
     enter: playSelected,
     space: togglePause,
@@ -215,9 +203,5 @@ async function start() {
   process.on('exit', () => process.stdout.write('\x1b[?25h'));
 
   render();
-  await Promise.all(songs.map(readDuration));
-  render();
 }
 start();
-
-
