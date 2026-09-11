@@ -49,24 +49,46 @@ function songLine(song, index) {
 }
 
 function render() {
-  const track = current === null ? null : songs[current];
-  const state = !track ? 'Stopped' : isPaused ? 'Paused' : 'Playing';
   const lines = [
     '🎶 Songs App',
     '↑/↓ navigate  •  Enter play  •  Space pause/resume  •  Q quit',
     '',
     ...songs.map(songLine),
     '',
-    track ? `${state}: ${track.title}` : 'Select a song and press Enter.',
-    track ? progressLine(track) : '',
+    'Select a song and press Enter.',
+    '',
   ];
 
   process.stdout.write('\x1b[?25l\x1b[H\x1b[2J');
   process.stdout.write(lines.join('\n'));
 }
 
+function writeRow(row, text) {
+  process.stdout.write(`\x1b[${row};1H\x1b[2K${text}`);
+}
+
+function renderSelection(previousSelected) {
+  for (const index of new Set([previousSelected, selected])) {
+    writeRow(index + 4, songLine(songs[index], index));
+  }
+}
+
+function renderPlayback() {
+  const statusRow = songs.length + 5;
+  const progressRow = songs.length + 6;
+  const track = current === null ? null : songs[current];
+  const status = !track ? 'Select a song and press Enter.' : `${isPaused ? 'Paused' : 'Playing'}: ${track.title}`;
+
+  writeRow(statusRow, status);
+  writeRow(progressRow, track ? progressLine(track) : '');
+}
+
+function renderProgress() {
+  if (current !== null) writeRow(songs.length + 6, progressLine(songs[current]));
+}
+
 function startProgressUpdates() {
-  if (!renderTimer) renderTimer = setInterval(render, 250);
+  if (!renderTimer) renderTimer = setInterval(renderProgress, 250);
 }
 
 function stopProgressUpdates() {
@@ -123,8 +145,8 @@ function playSelected() {
     if (childProcess !== playerProcess) return;
     stopPlayback();
     stopProgressUpdates();
-    process.stdout.write(`\nUnable to start mpv: ${error.message}\n`);
-    render();
+    renderPlayback();
+    process.stderr.write(`Unable to start mpv: ${error.message}\n`);
   });
   playerProcess.on('close', () => {
     if (childProcess !== playerProcess) return;
@@ -135,9 +157,9 @@ function playSelected() {
     isPaused = false;
     elapsedBeforePause = 0;
     stopProgressUpdates();
-    render();
+    renderPlayback();
   });
-  render();
+  renderPlayback();
 }
 
 function togglePause() {
@@ -150,7 +172,7 @@ function togglePause() {
     isPaused = false;
   }
   sendMpvCommand(['set_property', 'pause', isPaused]);
-  render();
+  renderPlayback();
 }
 
 function quit() {
@@ -188,12 +210,14 @@ async function start() {
   process.stdin.resume();
   bindKeys(process.stdin, {
     up: () => {
+      const previousSelected = selected;
       selected = (selected - 1 + songs.length) % songs.length;
-      render();
+      renderSelection(previousSelected);
     },
     down: () => {
+      const previousSelected = selected;
       selected = (selected + 1) % songs.length;
-      render();
+      renderSelection(previousSelected);
     },
     enter: playSelected,
     space: togglePause,
