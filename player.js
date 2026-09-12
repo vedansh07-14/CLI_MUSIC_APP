@@ -21,6 +21,16 @@ let renderTimer = null;
 let quitting = false;
 let ipcSocketPath = null;
 
+const style = {
+  reset: '\x1b[0m',
+  bold: '\x1b[1m',
+  dim: '\x1b[2m',
+  cyan: '\x1b[36m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  gray: '\x1b[90m',
+};
+
 function formatTime(seconds) {
   if (!Number.isFinite(seconds)) return '--:--';
   const rounded = Math.max(0, Math.floor(seconds));
@@ -34,28 +44,33 @@ function elapsed() {
 
 function progressBar(value, width = 32) {
   const filled = Math.round(Math.max(0, Math.min(1, value)) * width);
-  return `${'█'.repeat(filled)}${'░'.repeat(width - filled)}`;
+  return `${style.cyan}${'█'.repeat(filled)}${style.gray}${'░'.repeat(width - filled)}${style.reset}`;
 }
 
 function progressLine(track) {
   const position = elapsed();
   const duration = track?.duration;
   const percent = duration ? Math.min(100, Math.floor((position / duration) * 100)) : 0;
-  return `[${progressBar(duration ? position / duration : 0)}] ${String(percent).padStart(3, ' ')}%  ${formatTime(position)} / ${formatTime(duration)}`;
+  return `${style.gray}Progress ${style.reset}[${progressBar(duration ? position / duration : 0)}] ${style.bold}${String(percent).padStart(3, ' ')}%${style.reset}  ${style.gray}${formatTime(position)} / ${formatTime(duration)}${style.reset}`;
 }
 
 function songLine(song, index) {
-  return `${index === selected ? '❯' : ' '} ${String(index + 1).padStart(2, ' ')}. ${song.title}  ${formatTime(song.duration)}`;
+  const number = String(index + 1).padStart(2, '0');
+  const duration = formatTime(song.duration);
+  if (index === selected) {
+    return `${style.cyan}${style.bold}❯ ${number}  ${song.title}${style.reset}  ${style.gray}${duration}${style.reset}`;
+  }
+  return `${style.gray}  ${number}${style.reset}  ${song.title}  ${style.gray}${duration}${style.reset}`;
 }
 
 function render() {
   const lines = [
-    '🎶 Songs App',
-    '↑/↓ navigate  •  Enter play  •  Space pause/resume  •  Q quit',
-    '',
+    `${style.cyan}${style.bold}♫  MUSIC LIBRARY${style.reset}`,
+    `${style.dim}↑/↓ Browse   ↵ Play   Space Pause/Resume   Q Quit${style.reset}`,
+    `${style.gray}${'─'.repeat(52)}${style.reset}`,
     ...songs.map(songLine),
     '',
-    'Select a song and press Enter.',
+    `${style.dim}Select a song and press Enter.${style.reset}`,
     '',
   ];
 
@@ -77,7 +92,11 @@ function renderPlayback() {
   const statusRow = songs.length + 5;
   const progressRow = songs.length + 6;
   const track = current === null ? null : songs[current];
-  const status = !track ? 'Select a song and press Enter.' : `${isPaused ? 'Paused' : 'Playing'}: ${track.title}`;
+  const status = !track
+    ? `${style.dim}Select a song and press Enter.${style.reset}`
+    : isPaused
+      ? `${style.yellow}${style.bold}Ⅱ  PAUSED${style.reset}  ${track.title}`
+      : `${style.green}${style.bold}▶  NOW PLAYING${style.reset}  ${track.title}`;
 
   writeRow(statusRow, status);
   writeRow(progressRow, track ? progressLine(track) : '');
